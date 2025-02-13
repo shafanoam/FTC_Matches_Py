@@ -1,52 +1,140 @@
 import tkinter as tk
 from tkinter import messagebox
-# import requests
+import requests
+import base64
 import json
 
 
-# TODO: ARIANNA! Get hybrid schedule here, returning [True, (JSON)] if success and [False, error code] if failed.
-def get_schedule_json(Team, Event):
+# print(requests.get(url="https://ftc-api.firstinspires.org/v2.0/2024/teams?teamNumber=2",
+#                    headers={"Authorization": "Basic " + base64.b64encode("shafanoam:59A5D18B-9FD0-46CF-8ECB-F55DE8B27354".encode()).decode()}).json())
+
+
+def setup_match_list(team=str(), event=str(), key=str(), year=str()):
+
+    # for API purposes
+    team = int(team)
+
+    # loading match list
+    matchJson = requests.get(
+        url=f"https://ftc-api.firstinspires.org/v2.0/{year}/schedule/{event}/qual/hybrid",
+        headers={"Authorization": "Basic "
+                                  + base64.b64encode(key.encode()).decode()}).json()
+
+    print(matchJson)
+    matchList = []
+
+    for match in matchJson["schedule"]:
+        inmatch = False  # temp variable
+
+        if match["teams"][0]["teamNumber"] == team:
+            inmatch = True
+        elif match["teams"][1]["teamNumber"] == team:
+            inmatch = True
+        elif match["teams"][2]["teamNumber"] == team:
+            inmatch = True
+        elif match["teams"][3]["teamNumber"] == team:
+            inmatch = True
+
+        if inmatch:
+            matchList.append(match)
+
+    print(matchList)
+    # delete old stuff in frame
+    for match in scrollFrame.winfo_children():
+        match.destroy()
+    matchShowings = []
+    i = 0
+    for item in matchList:
+        matchShower = tk.Frame(scrollFrame)
+        print(matchList[i]["description"])
+        matchNameLabel = tk.Label(matchShower, text=matchList[i]["description"], font="Helvetica 20")
+        matchNameLabel.place(relx=0, rely=0, anchor="nw")
+        matchShowings.append(matchShower.place(relx=0, rely=(i * 30), relwidth=1, height=30))
+        i += 1
+
+
     return [True, "9fohsohfsoe"]
 
 
-def get_team_name():
-    transformed_json = {"teams": [{"teamNumber": 4466, "nameFull": "R.A.B.B.I."},
-                                  {"teamNumber": 7159, "nameFull": "Robo Ravens"}]}
-    name = False
-    for i in range(len(transformed_json["teams"])):
-        if str(transformed_json["teams"][i]["teamNumber"]) == teamNum.get():
-            name = str(transformed_json["teams"][i]["nameFull"])
-    return name
+# verify that the API key is valid. if error code is not 200 (means OK), return it.
+def verify_api_connection(key=str(), year=str()):
+    # if the API is bad, sometimes it just zoinks out...
+    try:
+        code = requests.get(f"https://ftc-api.firstinspires.org/v2.0/{year}",
+                            headers={"Authorization": "Basic " + base64.b64encode(key.encode()).decode()}).status_code
+    except:
+        return "Bad API\n The API key you used is invalid. Make sure it's in the same format as the" \
+               " following example:\nsampleuser:7eaa6338-a097-4221-ac04-b6120fcc4d49"
+
+    if code == 200:
+        return "200"
+    elif code == 400:
+        return "400: Malformed Request\nPlease contact the developers for help."
+    elif code == 401:
+        return "401: Unauthorized\nThe API key you used is invalid. Make sure it's in the same format as the" \
+               " following example:\nsampleuser:7eaa6338-a097-4221-ac04-b6120fcc4d49"
+    elif code == 404:
+        return "404: Event Not Found\nThis happened while simply verifying the API key, so if you're seeing this, " \
+               "something's gone seriously wrong. Please contact the developers for help."
+    elif code == 500:
+        return "500: Internal Server Error\nThe FTC-Events server encountered an unexpected condition which prevented" \
+               " it from fulfilling the request. Please try again in a few minutes."
+    elif code == 501:
+        return "501: Request Did Not Match Any Current API Pattern\nThis happened while simply verifying the API key," \
+               " so if you're seeing this, something's gone seriously wrong. Please contact the developers for help."
+    elif code == 503:
+        return "503: Service Unavailable\nThe server is currently unable to handle the request due to a temporary" \
+               " overloading or maintenance of the server."
+
+
+
+# returns the name if it worked, False if it didn't.
+def get_team_name(key=str(), number=str(), year=str()):
+    teamInfoJson = requests.get(url=f"https://ftc-api.firstinspires.org/v2.0/{year}/teams?teamNumber={number}",
+                                headers={"Authorization": "Basic "
+                                                          + base64.b64encode(key.encode()).decode()}).json()
+
+    # check if team even exists! The second half of the 'if' is in case a team's name contains "malformed" lol
+    if ("Malformed" in teamInfoJson) and ("{" not in teamInfoJson):
+        return False
+    else:
+        return str(teamInfoJson["teams"][0]["nameShort"])
 
 
 def verify_and_start():
+
     if not str.isdigit(teamNum.get()):
         messagebox.showerror(title="Team Number NaN", message="Ensure the team number is a valid number.")
         return
 
-    eventReturn = get_schedule_json(teamNum.get(), eventCode.get())
-    if not eventReturn[0]:
-        messagebox.showerror(title="EVENT RETRIEVAL ERROR",
-                             message="The event could not be found. Ensure it's spelled correctly!" + eventReturn[1])
+    root.withdraw()
+
+    api_result = verify_api_connection(key=apiKey.get(), year=eventYear.get())
+    if api_result == "200":
+        pass
     else:
-        root.withdraw()
+        root.deiconify()
+        messagebox.showerror(title="Uh oh!", message=api_result)
 
-        teamName = get_team_name()
-        if teamName:
-            teamNameLabel.configure(text=teamName)
-        else:
-            root.deiconify()
-            messagebox.showerror(title="Team Error",
-                                 message="Could not find a team with the number " + str(teamNum.get()) + ".")
-            return
+    teamName = get_team_name(key=apiKey.get(), number=teamNum.get(), year=eventYear.get())
+    if teamName:
+        teamNameLabel.configure(text=teamName)
+    else:
+        root.deiconify()
+        messagebox.showerror(title="Team Error",
+                             message="Could not find a team with the number " + str(teamNum.get()) + ".")
+        return
 
-        global eventDict
-        # eventDict = json.loads(eventReturn[1])
+    global eventDict
+    # eventDict = json.loads(eventReturn[1])
 
-        # setup and open matches window
-        mainViewerWindow.title("FTC Matches: Team " + str(teamNum.get()))
-        teamNumberLabel.configure(text=str(teamNum.get()))
-        mainViewerWindow.deiconify()
+    # SETUP AND OPEN MATCHES WINDOW
+    mainViewerWindow.title("FTC Matches: Team " + str(teamNum.get()))
+    teamNumberLabel.configure(text=str(teamNum.get()))
+
+    setup_match_list(key=apiKey.get(), team=teamNum.get(), event=eventCode.get(), year=eventYear.get())
+
+    mainViewerWindow.deiconify()
 
 
 
@@ -67,13 +155,21 @@ teamNumEntry.place(relx=0.5, rely=0.2, relwidth=0.5, anchor="center")
 # event code input
 eventCode = tk.StringVar()
 eventCodeLabel = tk.Label(root, text="Event Code")
-eventCodeLabel.place(relx=0.5, rely=0.35, relwidth=0.5, anchor="center")
+eventCodeLabel.place(relx=0.333, rely=0.35, relwidth=0.25, anchor="center")
 eventCodeEntry = tk.Entry(root, textvariable=eventCode)
-eventCodeEntry.place(relx=0.5, rely=0.45, relwidth=0.5, anchor="center")
+eventCodeEntry.place(relx=0.333, rely=0.45, relwidth=0.25, anchor="center")
 
-# event code input
+# event year input
+eventYear = tk.StringVar()
+eventYearLabel = tk.Label(root, text="Event Year")
+eventYearLabel.place(relx=0.666, rely=0.35, relwidth=0.25, anchor="center")
+eventYearEntry = tk.Entry(root, textvariable=eventYear)
+eventYearEntry.place(relx=0.666, rely=0.45, relwidth=0.25, anchor="center")
+
+# API key input
 apiKey = tk.StringVar()
-apiKeyLabel = tk.Label(root, text="API Key")
+apiKey.set("shafanoam:59A5D18B-9FD0-46CF-8ECB-F55DE8B27354")
+apiKeyLabel = tk.Label(root, text="API: 'Username:Token'")
 apiKeyLabel.place(relx=0.5, rely=0.6, relwidth=0.5, anchor="center")
 apiKeyEntry = tk.Entry(root, textvariable=apiKey, show='*')
 apiKeyEntry.place(relx=0.5, rely=0.7, relwidth=0.5, anchor="center")
@@ -147,7 +243,7 @@ mainViewerWindow.protocol("WM_DELETE_WINDOW", return_to_rooter)
 
 while True:
     # update "start" button
-    if teamNum.get() and eventCode.get() and apiKey.get():
+    if teamNum.get() and eventCode.get() and eventYear.get() and apiKey.get():
         startProgramButton.configure(state="normal")
     else:
         startProgramButton.configure(state="disabled")
