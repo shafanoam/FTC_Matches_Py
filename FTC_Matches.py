@@ -18,9 +18,10 @@ def setup_match_list(team=str(), event=str(), key=str(), year=str()):
     matchJson = requests.get(
         url=f"https://ftc-api.firstinspires.org/v2.0/{year}/schedule/{event}/qual/hybrid",
         headers={"Authorization": "Basic "
-                                  + base64.b64encode(key.encode()).decode()}).json()
+                                  + base64.b64encode(key.encode()).decode()})
 
     print(matchJson)
+    matchJson = matchJson.json()
     matchList = []
 
     for match in matchJson["schedule"]:
@@ -43,13 +44,18 @@ def setup_match_list(team=str(), event=str(), key=str(), year=str()):
     for match in scrollFrame.winfo_children():
         match.destroy()
     matchShowings = []
+
+    # displayFirst = matchDisplay(scrollFrame, match_name=matchList[0]["description"])
+    # displayFirst.pack()
+
     i = 0
     for item in matchList:
-        matchShower = tk.Frame(scrollFrame)
-        print(matchList[i]["description"])
-        matchNameLabel = tk.Label(matchShower, text=matchList[i]["description"], font="Helvetica 20")
-        matchNameLabel.place(relx=0, rely=0, anchor="nw")
-        matchShowings.append(matchShower.place(relx=0, rely=(i * 30), relwidth=1, height=30))
+        matchShowings.append(matchDisplay(scrollFrame,
+                                          match_name=matchList[i]["description"],
+                                          red_score=matchList[i]["scoreRedFinal"],
+                                          blue_score=matchList[i]["scoreBlueFinal"],
+                                          match_status="TODO: match status"
+                                          ).pack())
         i += 1
 
 
@@ -192,7 +198,7 @@ root.protocol("WM_DELETE_WINDOW", exiter)
 # ACTUAL VIEWING WINDOW
 
 mainViewerWindow = tk.Toplevel(root)
-mainViewerWindow.withdraw()
+# mainViewerWindow.withdraw()
 
 mainViewerWindow.title("FTC Matches: Team " + str(teamNum.get()))
 mainViewerWindow.geometry("800x600")
@@ -219,8 +225,10 @@ sscrollcanvas = tk.Canvas(sscrollingContainer)
 sscrollbar = tk.Scrollbar(sscrollingContainer, orient="vertical", command=sscrollcanvas.yview)
 scrollFrame = tk.Frame(sscrollcanvas)
 
+
 # setting up scrollable area that updates whenever contents of scrollFrame change
 scrollFrame.bind("<Configure>", lambda e: sscrollcanvas.configure(scrollregion=sscrollcanvas.bbox("all")))
+# mainViewerWindow.bind("<Configure>", lambda e: sscrollcanvas.configure(scrollregion=sscrollcanvas.bbox("all")))
 
 # drawing scrollFrame within the canvas
 sscrollcanvas.create_window((0, 0), window=scrollFrame, anchor='nw')
@@ -229,6 +237,34 @@ sscrollcanvas.configure(yscrollcommand=sscrollbar.set)
 sscrollingContainer.place(relx=0, rely=0.15, relwidth=1, relheight=0.65)
 sscrollcanvas.pack(side="left", fill="both", expand=True)
 sscrollbar.pack(side="right", fill="y")
+
+
+# create a class for the group of stuff that form a match in the match viewer
+class matchDisplay(tk.Frame):
+    def __init__(self, parent,
+                 match_name=str(), red_score=int(), blue_score=str(), match_status=str()):
+        tk.Frame.__init__(self, parent)
+        # self.tkraise()
+        self.matchNameLabel = tk.Label(self, text=match_name, font="helvetica 18")
+        self.matchNameLabel.grid(row=0, column=0, sticky="ew")
+
+        self.redScoreLabel = tk.Label(self, text=(red_score if red_score != None else "???"),
+                                      bg="red", fg="white", font="helvetica 24")
+        self.redScoreLabel.grid(row=0, column=1, sticky="ew")
+
+        self.blueScoreLabel = tk.Label(self, text=(blue_score if blue_score != None else "???"),
+                                      bg="blue", fg="white", font="helvetica 24")
+        self.blueScoreLabel.grid(row=0, column=2, sticky="ew")
+
+        self.matchStatusLabel = tk.Label(self, text=match_status, font="helvetica 18")
+        self.matchStatusLabel.grid(row=0, column=3, sticky="ew")
+
+        # configure the sizing of the first row
+        self.rowconfigure(0, minsize=75)
+        self.columnconfigure(0, minsize=200)
+        self.columnconfigure(1, minsize=100)
+        self.columnconfigure(2, minsize=100)
+        self.columnconfigure(3, minsize=200)
 
 
 # return to root upon closing
